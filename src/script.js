@@ -4,6 +4,134 @@ const { hideBin } = require('yargs/helpers');
 const fs = require('fs').promises;
 const chalk = require('chalk');
 
+// Main function
+async function main() {
+    const argv = parseCLIArguments();
+    try {
+        const pathsData = await fetchPathsData(argv);
+        const endpoints = extractEndpointsWithMethods(pathsData);
+
+        if (argv.saveTree) {
+            await saveEndpointsToFile(endpoints);
+        }
+
+        if (argv.checkAll) {
+            displayInternalOverlaps(endpoints);
+        } else {
+            displaySpecificOverlap(argv.path, argv.method, endpoints);
+        }
+    } catch (error) {
+        console.error('Error:', error.message);
+    }
+}
+
+// Parse command line arguments
+function parseCLIArguments() {
+    return yargs(hideBin(process.argv))
+    .option('url', {
+        alias: 'u',
+        describe: 'URL of the Swagger file',
+        type: 'string'
+    })
+    .option('file', {
+        alias: 'f',
+        describe: 'Path to the file containing existing paths',
+        type: 'string'
+    })
+    .option('path', {
+        alias: 'p',
+        describe: 'Path to check for overlap',
+        demandOption: true,
+        type: 'string'
+    })
+    .option('method', {
+        alias: 'm',
+        describe: 'Method to check for overlap',
+        demandOption: true,
+        type: 'string'
+    })
+    .option('download', {
+        alias: 'd',
+        describe: 'Download Swagger file from URL',
+        type: 'boolean'
+    })
+    .option('saveTree', {
+        alias: 's',
+        describe: 'Save the endpoint tree to a file',
+        type: 'boolean'
+    })
+    .option('checkAll', {
+        alias: 'c',
+        describe: 'Check all endpoints for overlap within the Swagger file',
+        type: 'boolean'
+    })
+    .help()
+    .alias('help', 'h')
+    .argv;
+}
+
+// Fetch paths data from URL or file
+async function fetchPathsData(argv) {
+    if (argv.url) {
+        return await handleSwaggerURL(argv.url, argv.download);
+    } else if (argv.file) {
+        return await readJsonFile(argv.file);
+    }
+    throw new Error('URL or file path is required.');
+}
+
+// Handle Swagger URL
+async function handleSwaggerURL(url, download) {
+    const swaggerData = await downloadSwaggerFile(url);
+    if (download) {
+        await saveSwaggerFile(swaggerData);
+    }
+    return swaggerData;
+}
+
+// Read JSON file
+async function readJsonFile(filePath) {
+    const fileContent = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(fileContent);
+}
+
+// Save endpoints to file
+async function saveEndpointsToFile(endpoints) {
+    await ensureDirectory('./output');
+    await fs.writeFile('./output/endpoints.json', JSON.stringify(endpoints, null, 2));
+}
+
+// Ensure directory exists
+async function ensureDirectory(directory) {
+    try {
+        await fs.access(directory);
+    } catch {
+        await fs.mkdir(directory);
+    }
+}
+
+// Display internal overlaps
+function displayInternalOverlaps(endpoints) {
+    const overlaps = findOverlappingEndpoints(endpoints);
+    if (overlaps.length > 0) {
+        console.log(chalk.red('Overlapping endpoints found:'));
+        overlaps.forEach(overlap => console.log(chalk.yellow(`- ${overlap.path1} overlaps with ${overlap.path2}`)));
+    } else {
+        console.log(chalk.green('No internal overlapping endpoints found.'));
+    }
+}
+
+// Display specific overlap
+function displaySpecificOverlap(path, method, endpoints) {
+    const overlappingPath = isPathOverlapping(path, method, endpoints);
+    if (overlappingPath) {
+        console.log(chalk.red(`Path '${path}' with method '${method}' overlaps with '${overlappingPath}'`));
+    } else {
+        console.log(chalk.green(`Path '${path}' with method '${method}' does not overlap.`));
+    }
+}
+
+
 // Function to download Swagger file from a URL
 async function downloadSwaggerFile(url) {
     const response = await axios.get(url);
@@ -91,105 +219,4 @@ function findOverlappingEndpoints(endpointsWithMethods) {
     return overlaps;
 }
 
-async function main() {
-    const argv = yargs(hideBin(process.argv))
-        .option('url', {
-            alias: 'u',
-            describe: 'URL of the Swagger file',
-            type: 'string'
-        })
-        .option('file', {
-            alias: 'f',
-            describe: 'Path to the file containing existing paths',
-            type: 'string'
-        })
-        .option('path', {
-            alias: 'p',
-            describe: 'Path to check for overlap',
-            demandOption: true,
-            type: 'string'
-        })
-        .option('method', {
-            alias: 'm',
-            describe: 'Method to check for overlap',
-            demandOption: true,
-            type: 'string'
-        })
-        .option('download', {
-            alias: 'd',
-            describe: 'Download Swagger file from URL',
-            type: 'boolean'
-        })
-        .option('saveTree', {
-            alias: 's',
-            describe: 'Save the endpoint tree to a file',
-            type: 'boolean'
-        })
-        .option('checkAll', {
-            alias: 'c',
-            describe: 'Check all endpoints for overlap within the Swagger file',
-            type: 'boolean'
-        })
-        .help()
-        .alias('help', 'h')
-        .argv;
-
-    const { 
-        url,
-        file,
-        path: pathToCheck,
-        method,
-        checkAll
-    } = argv;
-
-    try {
-        let givenPaths;
-
-        if (url) {
-            const swaggerObject = await downloadSwaggerFile(url);
-            givenPaths = swaggerObject;
-            if (argv.download) {
-                await saveSwaggerFile(swaggerObject);
-            }
-        } else if (file) {
-            const fileContent = await fs.readFile(file, 'utf8');
-            givenPaths = JSON.parse(fileContent);
-        } else {
-            throw new Error('Please provide either a URL or a file path.');
-        }
-        const extractedEndpointsWithMethods = extractEndpointsWithMethods(givenPaths);
-        if (argv.saveTree) {
-            try {
-                await fs.access('./output');
-            } catch (error) {
-                await fs.mkdir('./output');
-            }
-            await fs.writeFile('./output/endpoints.json', JSON.stringify(extractedEndpointsWithMethods, null, 2));
-        }
-        if (checkAll) {
-            // Check for internal overlaps
-            const internalOverlaps = findOverlappingEndpoints(extractedEndpointsWithMethods);
-            if (internalOverlaps.length > 0) {
-                console.log(chalk.red('Overlapping endpoints found:'));
-                internalOverlaps.forEach(overlap => {
-                    console.log(chalk.yellow(`- ${overlap.path1} overlaps with ${overlap.path2}`));
-                });
-            } else {
-                console.log(chalk.green('No internal overlapping endpoints found.'));
-            }
-        } else {
-            // Check the specified path and method for overlap
-            const overlappingPath = isPathOverlapping(pathToCheck, method, extractedEndpointsWithMethods);
-            if (overlappingPath) {
-                console.log(chalk.red(`The path '${pathToCheck}' with method '${method}' overlaps with existing overlapping path: '${overlappingPath}'`));
-            } else {
-                console.log(chalk.green(`The path '${pathToCheck}' with method '${method}' does not overlap with existing paths.`));
-            }
-        }
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
-
-
-main();
+main().catch(console.error);
