@@ -25,19 +25,14 @@ The script can be run from the command line with various options:
 ### Examples
 
 1.  Check a specific endpoint for overlap:
-
-bashCopy code
-
-`node script.js --url [URL] --path [PATH] --method [METHOD]`
-
+```bash
+node script.js --url [URL] --path [PATH] --method [METHOD]
+```
 2.  Check all endpoints for overlap in a downloaded Swagger file:
-
-bashCopy code
-
-`node script.js --url [URL] --checkAll`
-
+```bash
+node script.js --url [URL] --checkAll
+```
 3.  Check a specific endpoint in a local Swagger file:
-
-bashCopy code
-
-`node script.js --file [FILE_PATH] --path [PATH] --method [METHOD]`
+```bash
+node script.js --file [FILE_PATH] --path [PATH] --method [METHOD]
+```
