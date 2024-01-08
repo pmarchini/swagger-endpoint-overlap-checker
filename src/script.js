@@ -30,16 +30,17 @@ function isPathOverlapping(givenPath, givenMethod, existingPaths) {
     const normalizePath = path => path.replace(/\/$/, '');
 
     givenPath = normalizePath(givenPath);
+    const normalizedGivenMethod = givenMethod ? givenMethod.toLowerCase() : null;
 
     for (const entry of Object.entries(existingPaths)) {
-        const [path, method] = entry;
+        const [path, methods] = entry;
         const normalizedPath = normalizePath(path);
 
         // Check for exact match or segment overlap
         // Also check if methods are the same if given
         if ((givenPath === normalizedPath || pathIncludesSegments(givenPath, normalizedPath)) &&
-            (!givenMethod || givenMethod === method)) {
-            return true;
+            (!normalizedGivenMethod || methods.includes(normalizedGivenMethod))) {
+            return normalizedPath;
         }
     }
     return false;
@@ -178,10 +179,11 @@ async function main() {
             }
         } else {
             // Check the specified path and method for overlap
-            if (isPathOverlapping(pathToCheck, method, extractedEndpointsWithMethods)) {
-                console.log(chalk.green(`The path '${pathToCheck}' with method '${method}' overlaps with existing paths.`));
+            const overlappingPath = isPathOverlapping(pathToCheck, method, extractedEndpointsWithMethods);
+            if (overlappingPath) {
+                console.log(chalk.red(`The path '${pathToCheck}' with method '${method}' overlaps with existing overlapping path: '${overlappingPath}'`));
             } else {
-                console.log(chalk.blue(`The path '${pathToCheck}' with method '${method}' does not overlap with existing paths.`));
+                console.log(chalk.green(`The path '${pathToCheck}' with method '${method}' does not overlap with existing paths.`));
             }
         }
     } catch (error) {
