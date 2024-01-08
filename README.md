@@ -10,11 +10,6 @@ This Node.js script checks for overlapping endpoints in a Swagger (OpenAPI) spec
 - Option to check all endpoints within the Swagger file for overlaps.
 - Save the downloaded Swagger file and the extracted endpoint tree to local files.
 
-## Prerequisites
-
-- Node.js
-- npm (Node Package Manager)
-
 ## Usage
 
 The script can be run from the command line with various options:
